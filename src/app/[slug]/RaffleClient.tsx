@@ -143,19 +143,34 @@ export default function RaffleClient({ slug }: RaffleClientProps) {
     }
   };
 
-  const handleLoginCpfSubmit = () => {
+  const handleLoginCpfSubmit = async () => {
     const cleanCpf = loginCpf.replace(/\D/g, '');
     if (!validateCPF(cleanCpf)) {
       setLoginCpfError('CPF inválido.');
       return;
     }
-    const foundUser = MOCK_USERS.find(u => u.cpf === cleanCpf);
-    if (foundUser) {
-      setLoginUser(foundUser);
-      setIsLoginStepPhone(true);
-      setLoginCpfError('');
-    } else {
-      setLoginCpfError('Usuário não encontrado.');
+
+    try {
+      // 1. Em vez de procurar no MOCK_USERS, vamos chamar a nossa API
+      const response = await fetch('/api/auth/request-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cpf: cleanCpf, phone: loginPhone.replace(/\D/g, '') || '00000000000' }) // O telefone real vem na próxima etapa
+      });
+
+      const data = await response.json();
+
+      if (data.isNewUser) {
+        setLoginCpfError('Utilizador não encontrado. Compre bilhetes primeiro.');
+      } else {
+        // Encontrou o utilizador. Aqui idealmente a API já devolveu o telefone mascarado ou o frontend pede para ele confirmar.
+        // Vamos avançar para a etapa de pedir o código SMS.
+        setIsLoginStepPhone(true);
+        setLoginCpfError('');
+        // NOTA: Para testar, olha para o terminal onde o Next.js está a correr para veres o código SMS!
+      }
+    } catch (error) {
+      setLoginCpfError('Erro ao comunicar com o servidor.');
     }
   };
 
@@ -479,8 +494,8 @@ export default function RaffleClient({ slug }: RaffleClientProps) {
                       <div
                         key={prize.id}
                         className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${prize.winnerOrderNumber
-                            ? 'bg-white/5 border-white/5 opacity-60'
-                            : 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40'
+                          ? 'bg-white/5 border-white/5 opacity-60'
+                          : 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40'
                           }`}
                       >
                         <div className="flex items-center gap-4">
@@ -988,12 +1003,12 @@ export default function RaffleClient({ slug }: RaffleClientProps) {
                                               disabled={isOpened || allPrizesWon}
                                               onClick={() => handleOpenBox(ticket)}
                                               className={`relative w-12 h-12 rounded-xl flex items-center justify-center transition-all active:scale-90 ${isOpened
-                                                  ? openedBox.prize
-                                                    ? 'bg-yellow-500/20 border border-yellow-500/40 text-yellow-400'
-                                                    : 'bg-white/5 border border-white/10 text-gray-600'
-                                                  : allPrizesWon
-                                                    ? 'bg-white/5 border border-white/10 text-gray-600 cursor-not-allowed'
-                                                    : 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-lg shadow-purple-500/20 hover:scale-110'
+                                                ? openedBox.prize
+                                                  ? 'bg-yellow-500/20 border border-yellow-500/40 text-yellow-400'
+                                                  : 'bg-white/5 border border-white/10 text-gray-600'
+                                                : allPrizesWon
+                                                  ? 'bg-white/5 border border-white/10 text-gray-600 cursor-not-allowed'
+                                                  : 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-lg shadow-purple-500/20 hover:scale-110'
                                                 }`}
                                             >
                                               {isOpened ? openedBox.prize ? <Trophy size={20} /> : <X size={20} /> : <Gift size={20} />}
