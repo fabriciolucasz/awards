@@ -4,69 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { Search, MessageCircle, Send, Instagram, Smartphone, Copy, Minus, Plus, Check, ChevronRight, Trophy, Users, Info, X, Calendar, Phone, ChevronDown, ChevronUp, Hash, Gift, Sparkles } from 'lucide-react';
+import { Search, MessageCircle, Send, Instagram, Smartphone, Copy, Minus, Plus, Check, ChevronRight, Trophy, Users, Info, X, Calendar, Phone, ChevronDown, ChevronUp, Hash, Gift, Sparkles, LayoutDashboard, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-// --- Mock Database ---
-const MOCK_USERS = [
-  {
-    cpf: '07163165102',
-    name: 'Murilo de Oliveira Souza',
-    phone: '11987654321',
-    birthDate: '1995-05-15'
-  },
-  {
-    cpf: '98765432100',
-    name: 'Vagner Alberto Monteiro',
-    phone: '11912345678',
-    birthDate: '1988-10-20'
-  }
-];
-
-const MOCK_RAFFLE = {
-  id: 'raffle-001',
-  title: 'TITAN 160 (10 mil no PIX)',
-  description: 'O vencedor será definido no primeiro prêmio da loteria federal!',
-  pricePerTicket: 0.05,
-  minTickets: 100,
-  imageUrl: 'https://www.trgustavin.com.br/play/views/theme/trgustavin/assets/img/acao/titan.png',
-  organizer: {
-    name: 'TRGUSTAVIN',
-    avatarUrl: 'https://picsum.photos/seed/organizer/100/100',
-    supportUrl: '#',
-    telegramUrl: '#',
-    instagramUrl: '#'
-  },
-  extraPrize: {
-    description: 'O que comprar mais números leva o prêmio extra de:',
-    value: 300.00
-  },
-  mysteryBox: {
-    enabled: true,
-    rules: [
-      { minTickets: 400, boxes: 1 },
-      { minTickets: 600, boxes: 2 },
-      { minTickets: 1200, boxes: 6 }
-    ],
-    winProbability: 0.99, // 10% chance to win
-    prizes: ['R$ 50,00 no PIX', 'R$ 100,00 no PIX', '1000 Bilhetes Grátis']
-  }
-};
-
-const MOCK_CONTRIBUTORS = [
-  { rank: 1, name: 'Murilo Oliveira Souza', ticketCount: 5000, color: 'bg-yellow-500' },
-  { rank: 2, name: 'Vagner Alberto Monteiro', ticketCount: 3000, color: 'bg-slate-300' },
-  { rank: 3, name: 'Jeniffer Pereira Martins', ticketCount: 1000, color: 'bg-orange-400' }
-];
-
-const MOCK_TICKETS = [
-  { orderNumber: '240220-001', cpf: '07163165102', numbers: Array.from({ length: 400 }, (_, i) => (10000 + i).toString()), date: '2024-02-20', status: 'pago', raffleTitle: 'TITAN 160 (10 mil no PIX)', openedBoxes: [] },
-  { orderNumber: '240221-002', cpf: '98765432100', numbers: ['55443', '22110'], date: '2024-02-21', status: 'pago', raffleTitle: 'TITAN 160 (10 mil no PIX)', openedBoxes: [] },
-  { orderNumber: '240222-003', cpf: '07163165102', numbers: Array.from({ length: 1200 }, (_, i) => (20000 + i).toString()), date: '2024-02-22', status: 'pago', raffleTitle: 'TITAN 160 (10 mil no PIX)', openedBoxes: [] }
-];
-// ----------------------
-
-type Page = 'home' | 'checkout' | 'payment' | 'tickets';
+import { AdminPanel } from './components/Admin/AdminPanel';
+import { MOCK_USERS, MOCK_RAFFLE, MOCK_CONTRIBUTORS, MOCK_TICKETS } from './data';
+import { Page, Raffle, User, Contributor, Ticket } from './types';
+import { getWinnerNameByOrderNumber, maskName, maskPhone } from './utils';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -84,8 +27,10 @@ const itemVariants = {
 };
 
 export default function App() {
+  const [raffle, setRaffle] = useState<Raffle>(MOCK_RAFFLE);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('home');
-  const [ticketCount, setTicketCount] = useState(MOCK_RAFFLE.minTickets);
+  const [ticketCount, setTicketCount] = useState(raffle.minTickets);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [cpf, setCpf] = useState('');
@@ -106,39 +51,11 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
     birthDate: '',
     phone: '',
     confirmPhone: ''
   });
-
-  const maskName = (name: string) => {
-    if (!name) return '';
-    const parts = name.split(' ').filter(p => p.length > 0);
-    if (parts.length === 0) return '';
-    
-    const prepositions = ['de', 'da', 'do', 'dos', 'das', 'e'];
-    const firstName = parts[0];
-    
-    if (parts.length === 1) return firstName;
-    
-    let secondPartIndex = 1;
-    let displayName = firstName;
-
-    // If the second part is a preposition, include it and move to the next part
-    if (prepositions.includes(parts[1].toLowerCase()) && parts.length > 2) {
-      displayName += ` ${parts[1]}`;
-      secondPartIndex = 2;
-    }
-
-    const secondName = parts[secondPartIndex];
-    
-    // Mask the meaningful second name: show first 2 chars, mask the rest
-    const maskedSecond = secondName.length > 2 
-      ? secondName.substring(0, 2) + '*'.repeat(Math.min(secondName.length - 2, 8))
-      : secondName;
-      
-    return `${displayName} ${maskedSecond}`;
-  };
 
   const validateCPF = (cpfValue: string) => {
     const cleanCpf = cpfValue.replace(/\D/g, '');
@@ -201,15 +118,6 @@ export default function App() {
     const formatted = formatPhone(e.target.value);
     setFormData(prev => ({ ...prev, [field]: formatted }));
     if (phoneError) setPhoneError('');
-  };
-
-  const maskPhone = (phone: string) => {
-    if (!phone) return '';
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 11) {
-      return `(${cleaned.substring(0, 2)}) ${cleaned[2]}****-**${cleaned.substring(9)}`;
-    }
-    return phone;
   };
 
   const handleCpfSubmit = () => {
@@ -276,6 +184,10 @@ export default function App() {
 
   const handleConfirm = () => {
     if (isNewUser) {
+      if (!formData.email || !formData.email.includes('@')) {
+        setPhoneError('Por favor, informe um e-mail válido.');
+        return;
+      }
       if (formData.phone !== formData.confirmPhone) {
         setPhoneError('Os números de telefone não coincidem.');
         return;
@@ -286,6 +198,7 @@ export default function App() {
       }
       setUser({
         name: formData.name,
+        email: formData.email,
         phone: formData.phone,
       });
     }
@@ -303,6 +216,7 @@ export default function App() {
     setPhoneError('');
     setFormData({
       name: '',
+      email: '',
       birthDate: '',
       phone: '',
       confirmPhone: ''
@@ -319,10 +233,17 @@ export default function App() {
     setLoginUser(null);
   };
 
-  const calculateBoxes = (ticketCount: number) => {
-    const rules = [...MOCK_RAFFLE.mysteryBox.rules].sort((a, b) => b.minTickets - a.minTickets);
+  const getEarnedBoxesCount = (ticketCount: number) => {
+    const rules = [...raffle.mysteryBox.rules].sort((a, b) => b.minTickets - a.minTickets);
     const rule = rules.find(r => ticketCount >= r.minTickets);
     return rule ? rule.boxes : 0;
+  };
+
+  const calculateBoxes = (ticketCount: number) => {
+    if (!raffle.mysteryBox.enabled) return 0;
+    const allPrizesWon = raffle.mysteryBox.prizes.every(p => p.winnerOrderNumber !== null);
+    if (allPrizesWon) return 0;
+    return getEarnedBoxesCount(ticketCount);
   };
 
   const handleOpenBox = (ticket: any) => {
@@ -332,10 +253,25 @@ export default function App() {
     
     // Simulate opening animation
     setTimeout(() => {
-      const win = Math.random() < MOCK_RAFFLE.mysteryBox.winProbability;
+      const availablePrizes = raffle.mysteryBox.prizes.filter(p => !p.winnerOrderNumber);
+      const win = availablePrizes.length > 0 && Math.random() < raffle.mysteryBox.winProbability;
+      
+      let prizeFound = null;
       if (win) {
-        const prize = MOCK_RAFFLE.mysteryBox.prizes[Math.floor(Math.random() * MOCK_RAFFLE.mysteryBox.prizes.length)];
-        setBoxPrize(prize);
+        const selectedPrizeIndex = raffle.mysteryBox.prizes.findIndex(p => p.id === availablePrizes[Math.floor(Math.random() * availablePrizes.length)].id);
+        const newPrizes = [...raffle.mysteryBox.prizes];
+        newPrizes[selectedPrizeIndex] = { ...newPrizes[selectedPrizeIndex], winnerOrderNumber: ticket.orderNumber };
+        
+        setRaffle({
+          ...raffle,
+          mysteryBox: {
+            ...raffle.mysteryBox,
+            prizes: newPrizes
+          }
+        });
+        
+        prizeFound = newPrizes[selectedPrizeIndex].name;
+        setBoxPrize(prizeFound);
       } else {
         setBoxPrize(null);
       }
@@ -343,7 +279,10 @@ export default function App() {
       
       // Update ticket in mock database (local state only for demo)
       if (!ticket.openedBoxes) ticket.openedBoxes = [];
-      ticket.openedBoxes.push(ticket.openedBoxes.length);
+      ticket.openedBoxes.push({ 
+        index: ticket.openedBoxes.length, 
+        prize: prizeFound 
+      });
     }, 2000);
   };
 
@@ -365,7 +304,7 @@ export default function App() {
       </div>
 
       <AnimatePresence mode="wait">
-        {currentPage === 'home' && (
+        {currentPage === 'home' && !isAdmin && (
           <motion.div
             key="home"
             initial="hidden"
@@ -387,6 +326,17 @@ export default function App() {
             </header>
 
             <main className="max-w-2xl mx-auto px-4 mt-8 space-y-8">
+              {/* Raffle Status Banner */}
+              {raffle.status === 'finished' && (
+                <motion.div 
+                  variants={itemVariants}
+                  className="bg-emerald-500 text-white p-6 rounded-3xl text-center space-y-2 shadow-lg shadow-emerald-500/20"
+                >
+                  <Trophy className="mx-auto mb-2" size={32} />
+                  <h2 className="text-xl font-black font-display tracking-tight uppercase">Sorteio Finalizado!</h2>
+                  <p className="text-sm font-bold opacity-90">Ganhador: <span className="text-white underline">{raffle.winner || 'A definir'}</span></p>
+                </motion.div>
+              )}
               {/* Search Bar */}
               <motion.div variants={itemVariants} className="relative group">
                 <button
@@ -404,8 +354,8 @@ export default function App() {
                 className="relative rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/10 group"
               >
                 <img
-                  src={MOCK_RAFFLE.imageUrl}
-                  alt={MOCK_RAFFLE.title}
+                  src={raffle.imageUrl}
+                  alt={raffle.title}
                   className="w-full aspect-video object-cover transition-transform duration-700 group-hover:scale-110"
                   referrerPolicy="no-referrer"
                 />
@@ -417,7 +367,7 @@ export default function App() {
                     transition={{ delay: 0.5 }}
                     className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/20"
                   >
-                    POR APENAS <span className="text-white">R$ {MOCK_RAFFLE.pricePerTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    POR APENAS <span className="text-white">R$ {raffle.pricePerTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </motion.div>
                 </div>
               </motion.div>
@@ -425,8 +375,8 @@ export default function App() {
               {/* Title */}
               <motion.div variants={itemVariants} className="space-y-2">
                 <h1 className="text-3xl font-black tracking-tight font-display leading-tight">
-                  {MOCK_RAFFLE.title.split('(')[0]} <br />
-                  <span className="text-emerald-400">({MOCK_RAFFLE.title.split('(')[1]}</span>
+                  {raffle.title.split('(')[0]} <br />
+                  <span className="text-emerald-400">({raffle.title.split('(')[1]}</span>
                 </h1>
                 <div className="h-1 w-20 bg-emerald-500 rounded-full" />
               </motion.div>
@@ -436,8 +386,8 @@ export default function App() {
                 <div className="flex items-center gap-4">
                   <div className="relative">
                     <img
-                      src={MOCK_RAFFLE.organizer.avatarUrl}
-                      alt={MOCK_RAFFLE.organizer.name}
+                      src={raffle.organizer.avatarUrl}
+                      alt={raffle.organizer.name}
                       className="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500/50"
                       referrerPolicy="no-referrer"
                     />
@@ -447,7 +397,7 @@ export default function App() {
                   </div>
                   <div>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Organizado por</p>
-                    <p className="font-black text-base font-display">{MOCK_RAFFLE.organizer.name}</p>
+                    <p className="font-black text-base font-display">{raffle.organizer.name}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 ml-auto">
@@ -474,79 +424,160 @@ export default function App() {
                 <div className="text-sm space-y-4 text-gray-300 leading-relaxed">
                   <p className="flex items-start gap-3">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-1.5 shrink-0" />
-                    {MOCK_RAFFLE.description}
+                    {raffle.description}
                   </p>
                   <p className="flex items-start gap-3">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-1.5 shrink-0" />
-                    {MOCK_RAFFLE.extraPrize.description} <span className="font-black text-emerald-400 ml-1">R$ {MOCK_RAFFLE.extraPrize.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    {raffle.extraPrize.description} <span className="font-black text-emerald-400 ml-1">R$ {raffle.extraPrize.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </p>
                 </div>
               </motion.section>
 
               {/* Mystery Box Promo Card */}
+              {raffle.mysteryBox.enabled && raffle.status !== 'finished' && !raffle.mysteryBox.prizes.every(p => p.winnerOrderNumber !== null) && (
+                <motion.section 
+                  variants={itemVariants}
+                  className="relative bg-gradient-to-br from-purple-900/40 to-indigo-900/40 backdrop-blur-md border border-purple-500/30 rounded-[32px] p-8 overflow-hidden group"
+                >
+                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-purple-500/20 blur-[80px] group-hover:bg-purple-500/30 transition-all" />
+                  <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-500/20 blur-[80px] group-hover:bg-indigo-500/30 transition-all" />
+                  
+                  <div className="relative z-10 flex items-center gap-6">
+                    <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-purple-500/20 group-hover:scale-110 transition-transform duration-500">
+                      <Gift size={40} className="text-white animate-bounce" />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={14} className="text-yellow-400" />
+                        <h3 className="text-xl font-black font-display tracking-tight">CAIXA MISTERIOSA</h3>
+                      </div>
+                      <p className="text-xs text-purple-200 font-medium leading-relaxed">
+                        Ganhe caixas ao comprar grandes quantidades e concorra a prêmios instantâneos!
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 grid grid-cols-3 gap-3">
+                    {raffle.mysteryBox.rules.map((rule, idx) => (
+                      <div key={idx} className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center space-y-1 group-hover:border-purple-500/30 transition-all">
+                        <p className="text-[10px] font-black text-purple-300 uppercase tracking-widest">{rule.minTickets} Números</p>
+                        <p className="text-lg font-black text-white">{rule.boxes} {rule.boxes === 1 ? 'Caixa' : 'Caixas'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </motion.section>
+              )}
+
+              {/* Mystery Box Prizes Status Card */}
               <motion.section 
                 variants={itemVariants}
-                className="relative bg-gradient-to-br from-purple-900/40 to-indigo-900/40 backdrop-blur-md border border-purple-500/30 rounded-[32px] p-8 overflow-hidden group"
+                className="bg-white/5 backdrop-blur-md border border-white/10 rounded-[32px] p-8 space-y-6"
               >
-                <div className="absolute -top-10 -right-10 w-40 h-40 bg-purple-500/20 blur-[80px] group-hover:bg-purple-500/30 transition-all" />
-                <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-500/20 blur-[80px] group-hover:bg-indigo-500/30 transition-all" />
-                
-                <div className="relative z-10 flex items-center gap-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-purple-500/20 group-hover:scale-110 transition-transform duration-500">
-                    <Gift size={40} className="text-white animate-bounce" />
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Sparkles size={14} className="text-yellow-400" />
-                      <h3 className="text-xl font-black font-display tracking-tight">CAIXA MISTERIOSA</h3>
-                    </div>
-                    <p className="text-xs text-purple-200 font-medium leading-relaxed">
-                      Ganhe caixas ao comprar grandes quantidades e concorra a prêmios instantâneos!
-                    </p>
-                  </div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black tracking-[0.2em] text-emerald-400 uppercase flex items-center gap-2">
+                    <Trophy size={14} /> Prêmios das Caixas
+                  </h3>
+                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                    {raffle.mysteryBox.prizes.filter(p => !p.winnerOrderNumber).length} Disponíveis
+                  </span>
                 </div>
 
-                <div className="mt-8 grid grid-cols-3 gap-3">
-                  {MOCK_RAFFLE.mysteryBox.rules.map((rule, idx) => (
-                    <div key={idx} className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center space-y-1 group-hover:border-purple-500/30 transition-all">
-                      <p className="text-[10px] font-black text-purple-300 uppercase tracking-widest">{rule.minTickets} Números</p>
-                      <p className="text-lg font-black text-white">{rule.boxes} {rule.boxes === 1 ? 'Caixa' : 'Caixas'}</p>
+                <div className="grid grid-cols-1 gap-4">
+                  {raffle.mysteryBox.prizes
+                    .filter(p => raffle.status === 'finished' ? p.winnerOrderNumber !== null : true)
+                    .map((prize) => (
+                    <div 
+                      key={prize.id}
+                      className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                        prize.winnerOrderNumber 
+                          ? 'bg-white/5 border-white/5 opacity-60' 
+                          : 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          prize.winnerOrderNumber ? 'bg-gray-500/20' : 'bg-emerald-500/20'
+                        }`}>
+                          {prize.winnerOrderNumber ? <Check size={18} className="text-gray-400" /> : <Gift size={18} className="text-emerald-400" />}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-white uppercase tracking-tight">{prize.name}</p>
+                          {prize.winnerOrderNumber && (
+                            <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
+                              Ganhador: {getWinnerNameByOrderNumber(prize.winnerOrderNumber, MOCK_TICKETS)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {!prize.winnerOrderNumber && (
+                        <div className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-emerald-500/20">
+                          Disponível
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               </motion.section>
 
               {/* Ranking */}
-              <motion.section variants={itemVariants} className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-8 space-y-8">
-                <h2 className="text-center text-xs font-black tracking-[0.2em] text-gray-400 uppercase flex items-center justify-center gap-2">
-                  <Users size={14} /> Classificação dos Colaboradores
-                </h2>
-                <div className="grid grid-cols-3 gap-6">
-                  {MOCK_CONTRIBUTORS.map((user) => (
-                    <motion.div 
-                      key={user.rank}
-                      whileHover={{ y: -5 }}
-                      className="flex flex-col items-center text-center space-y-3"
-                    >
-                      <div className="relative">
-                        <div className={`w-14 h-14 ${user.color} rounded-2xl flex items-center justify-center text-white shadow-xl rotate-3 group-hover:rotate-0 transition-transform`}>
-                          <Trophy size={16} />
+              {raffle.rankingEnabled && (
+                <motion.section variants={itemVariants} className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-8 space-y-8">
+                  <div className="text-center space-y-2">
+                    <h2 className="text-xs font-black tracking-[0.2em] text-gray-400 uppercase flex items-center justify-center gap-2">
+                      <Users size={14} /> Classificação dos Colaboradores
+                    </h2>
+                    <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Prêmios para os maiores compradores</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-white/5">
+                    {raffle.top3Prizes.map((prize, idx) => (
+                      <div key={idx} className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl border border-white/10">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-yellow-500 text-white' : idx === 1 ? 'bg-gray-300 text-gray-900' : 'bg-orange-500 text-white'}`}>
+                          {idx + 1}º
                         </div>
-                        <div className="absolute -top-2 -right-2 bg-white text-gray-900 w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs border-2 border-[#0f172a]">
-                          {user.rank}
+                        <p className="text-[10px] font-black text-white uppercase tracking-tight">{prize}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-6">
+                    {MOCK_CONTRIBUTORS.filter(c => c.category === 'geral').slice(0, 3).map((user) => (
+                      <motion.div 
+                        key={user.rank}
+                        whileHover={{ y: -5 }}
+                        className="flex flex-col items-center text-center space-y-3"
+                      >
+                        <div className="relative">
+                          <div className={`w-14 h-14 ${user.color} rounded-2xl flex items-center justify-center text-white shadow-xl rotate-3 group-hover:rotate-0 transition-transform`}>
+                            <Trophy size={16} />
+                          </div>
+                          <div className="absolute -top-2 -right-2 bg-white text-gray-900 w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs border-2 border-[#0f172a]">
+                            {user.rank}
+                          </div>
                         </div>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-black truncate w-full uppercase tracking-tighter">{user.name}</p>
-                        <p className="text-[10px] text-gray-400 font-bold"><span className="text-emerald-400">{user.ticketCount.toLocaleString('pt-BR')}</span> BILHETES</p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.section>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black truncate w-full uppercase tracking-tighter">{user.name}</p>
+                          <p className="text-[10px] text-gray-400 font-bold"><span className="text-emerald-400">{user.ticketCount.toLocaleString('pt-BR')}</span> BILHETES</p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.section>
+              )}
+
+              {/* Admin Access Button */}
+              <motion.div variants={itemVariants} className="flex justify-center pt-8">
+                <button 
+                  onClick={() => setIsAdmin(true)}
+                  className="text-[10px] font-black text-gray-600 hover:text-emerald-500 uppercase tracking-[0.3em] transition-colors flex items-center gap-2"
+                >
+                  <LayoutDashboard size={12} /> Painel Administrativo
+                </button>
+              </motion.div>
 
               {/* Ticket Selection */}
-              <motion.section variants={itemVariants} className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-8 space-y-8 relative overflow-hidden">
+              {raffle.status !== 'finished' && (
+                <motion.section variants={itemVariants} className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-8 space-y-8 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-50" />
                 
                 <h2 className="text-center text-xs font-black tracking-[0.2em] text-gray-400 uppercase">Selecione a quantidade de bilhetes</h2>
@@ -565,7 +596,7 @@ export default function App() {
 
                 <div className="flex items-center gap-6">
                   <button 
-                    onClick={() => setTicketCount(prev => Math.max(MOCK_RAFFLE.minTickets, prev - 1))}
+                    onClick={() => setTicketCount(prev => Math.max(raffle.minTickets, prev - 1))}
                     className="w-14 h-14 flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all active:scale-90"
                   >
                     <Minus size={20} />
@@ -574,7 +605,7 @@ export default function App() {
                     <input
                       type="number"
                       value={ticketCount}
-                      onChange={(e) => setTicketCount(Math.max(MOCK_RAFFLE.minTickets, parseInt(e.target.value) || MOCK_RAFFLE.minTickets))}
+                      onChange={(e) => setTicketCount(Math.max(raffle.minTickets, parseInt(e.target.value) || raffle.minTickets))}
                       className="w-full bg-white text-gray-900 py-4 rounded-2xl text-center font-black text-xl outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all"
                     />
                   </div>
@@ -587,7 +618,7 @@ export default function App() {
                 </div>
 
                 <p className="text-center text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                  Mínimo de <span className="text-emerald-400">{MOCK_RAFFLE.minTickets}</span> bilhetes
+                  Mínimo de <span className="text-emerald-400">{raffle.minTickets}</span> bilhetes
                 </p>
 
                 <div className="flex justify-between items-end pt-4">
@@ -595,16 +626,48 @@ export default function App() {
                     <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Valor total do investimento</span>
                     <div className="text-3xl font-black text-emerald-400 font-display">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                   </div>
+                  
+                  {raffle.mysteryBox.enabled && (
+                    calculateBoxes(ticketCount) > 0 ? (
+                      <motion.div 
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-purple-500/20 border border-purple-500/30 px-4 py-2 rounded-2xl flex items-center gap-2"
+                      >
+                        <Gift size={16} className="text-purple-400" />
+                        <div className="text-right">
+                          <p className="text-[8px] font-black text-purple-300 uppercase tracking-widest">Você ganha</p>
+                          <p className="text-sm font-black text-white">{calculateBoxes(ticketCount)} {calculateBoxes(ticketCount) === 1 ? 'Caixa' : 'Caixas'}</p>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="bg-white/5 border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-2 opacity-50"
+                      >
+                        <Gift size={16} className="text-gray-500" />
+                        <div className="text-right">
+                          <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Você ganha</p>
+                          <p className="text-sm font-black text-gray-400">Nenhuma Caixa</p>
+                        </div>
+                      </motion.div>
+                    )
+                  )}
                 </div>
 
                 <button
                   onClick={handleReserve}
-                  className="relative w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-5 rounded-2xl shadow-[0_20px_40px_rgba(16,185,129,0.3)] transition-all active:scale-[0.98] overflow-hidden group"
+                  disabled={raffle.salesBlocked || raffle.status === 'finished'}
+                  className={`relative w-full font-black py-5 rounded-2xl shadow-[0_20px_40px_rgba(16,185,129,0.3)] transition-all active:scale-[0.98] overflow-hidden group ${raffle.salesBlocked || raffle.status === 'finished' ? 'bg-gray-600 cursor-not-allowed shadow-none' : 'bg-emerald-500 hover:bg-emerald-400 text-white'}`}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer" />
-                  <span className="relative tracking-[0.2em]">RESERVAR AGORA</span>
+                  <span className="relative tracking-[0.2em]">
+                    {raffle.status === 'finished' ? 'SORTEIO FINALIZADO' : raffle.salesBlocked ? 'VENDAS BLOQUEADAS' : 'COMPRAR AGORA'}
+                  </span>
                 </button>
               </motion.section>
+              )}
 
               {/* Footer Info */}
               <motion.div variants={itemVariants} className="grid grid-cols-2 gap-6">
@@ -665,14 +728,74 @@ export default function App() {
                     {[
                       { label: 'Nome', value: user ? maskName(user.name) : '---' },
                       { label: 'Telefone/WhatsApp', value: user ? maskPhone(user.phone) : '---' },
-                      { label: 'Quantidade de bilhetes', value: ticketCount }
+                      { label: 'Quantidade de bilhetes', value: ticketCount },
+                      { label: 'Caixas Misteriosas', value: calculateBoxes(ticketCount) > 0 ? `${calculateBoxes(ticketCount)} ${calculateBoxes(ticketCount) === 1 ? 'unidade' : 'unidades'}` : 'Nenhuma Caixa' },
+                      { label: 'Valor Total', value: `R$ ${totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, highlight: true }
                     ].map((item, idx) => (
-                      <div key={idx} className="flex flex-col gap-1 border-b border-white/5 pb-4">
-                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{item.label}</span>
-                        <span className="font-bold text-lg">{item.value}</span>
+                      <div key={idx} className={`flex flex-col gap-1 border-b border-white/5 pb-4 ${item.highlight ? 'bg-emerald-500/5 -mx-8 px-8 py-4 border-none' : ''}`}>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{item.label}</span>
+                          {item.label === 'Quantidade de bilhetes' && (
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => setTicketCount(prev => Math.max(raffle.minTickets, prev - 1))}
+                                className="w-6 h-6 flex items-center justify-center bg-white/10 rounded-md hover:bg-white/20 transition-all active:scale-90"
+                              >
+                                <Minus size={12} />
+                              </button>
+                              <button 
+                                onClick={() => setTicketCount(prev => prev + 1)}
+                                className="w-6 h-6 flex items-center justify-center bg-white/10 rounded-md hover:bg-white/20 transition-all active:scale-90"
+                              >
+                                <Plus size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <span className={`font-bold text-lg ${item.highlight ? 'text-emerald-400 text-2xl' : ''}`}>{item.value}</span>
                       </div>
                     ))}
                   </div>
+
+                  {(() => {
+                    const nextRule = [...raffle.mysteryBox.rules]
+                      .sort((a, b) => a.minTickets - b.minTickets)
+                      .find(r => r.minTickets > ticketCount);
+                    
+                    const allPrizesWon = raffle.mysteryBox.prizes.every(p => p.winnerOrderNumber !== null);
+
+                    if (nextRule && !allPrizesWon) {
+                      const ticketsMissing = nextRule.minTickets - ticketCount;
+                      return (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-6 space-y-4"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+                              <Gift size={24} className="text-white" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-black text-white uppercase tracking-tight">
+                                {calculateBoxes(ticketCount) > 0 ? 'Quer ganhar mais Caixas?' : 'Ganhe uma Caixa Misteriosa!'}
+                              </p>
+                              <p className="text-[10px] text-purple-300 font-medium">
+                                Faltam apenas <span className="font-black text-white">{ticketsMissing} bilhetes</span> para você levar <span className="text-white font-black">{nextRule.boxes} {nextRule.boxes === 1 ? 'caixa' : 'caixas'}</span>!
+                              </p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setTicketCount(nextRule.minTickets)}
+                            className="w-full bg-purple-500 hover:bg-purple-400 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                          >
+                            <Plus size={14} /> ADICIONAR +{ticketsMissing} BILHETES
+                          </button>
+                        </motion.div>
+                      );
+                    }
+                    return null;
+                  })()}
                   
                 </div>
               </motion.div>
@@ -698,7 +821,7 @@ export default function App() {
           </motion.div>
         )}
 
-        {currentPage === 'payment' && (
+        {currentPage === 'payment' && !isAdmin && (
           <motion.div
             key="payment"
             initial={{ opacity: 0, scale: 0.9 }}
@@ -777,7 +900,7 @@ export default function App() {
           </motion.div>
         )}
 
-        {currentPage === 'tickets' && (
+        {currentPage === 'tickets' && !isAdmin && (
           <motion.div
             key="tickets"
             initial={{ opacity: 0, y: 20 }}
@@ -797,7 +920,7 @@ export default function App() {
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <h2 className="text-2xl font-black font-display">Meus Bilhetes</h2>
-                  <p className="text-gray-400 text-xs uppercase tracking-widest font-bold">Olá, {user?.name.split(' ')[0]}</p>
+                  <p className="text-gray-400 text-xs uppercase tracking-widest font-bold">Olá, {user?.name?.split(' ')[0] || ''}</p>
                 </div>
                 <button 
                   onClick={() => setCurrentPage('home')}
@@ -860,7 +983,7 @@ export default function App() {
                             >
                               <div className="pt-4 border-t border-white/5 space-y-6">
                                 {/* Mystery Boxes Section */}
-                                {ticket.status === 'pago' && calculateBoxes(ticket.numbers.length) > 0 && (
+                                {raffle.mysteryBox.enabled && ticket.status === 'pago' && (getEarnedBoxesCount(ticket.numbers.length) > 0 || (ticket.openedBoxes && ticket.openedBoxes.length > 0)) && (
                                   <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-4 space-y-4">
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-2">
@@ -868,35 +991,63 @@ export default function App() {
                                         <p className="text-[10px] font-black text-purple-300 uppercase tracking-widest">Suas Caixas Misteriosas</p>
                                       </div>
                                       <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                        {ticket.openedBoxes?.length || 0} / {calculateBoxes(ticket.numbers.length)} Abertas
+                                        {ticket.openedBoxes?.length || 0} / {getEarnedBoxesCount(ticket.numbers.length)} Abertas
                                       </p>
                                     </div>
                                     
                                     <div className="flex flex-wrap gap-3">
-                                      {Array.from({ length: calculateBoxes(ticket.numbers.length) }).map((_, bIdx) => {
-                                        const isOpened = ticket.openedBoxes?.includes(bIdx);
-                                        return (
-                                          <button
-                                            key={bIdx}
-                                            disabled={isOpened}
-                                            onClick={() => handleOpenBox(ticket)}
-                                            className={`relative w-12 h-12 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
-                                              isOpened 
-                                                ? 'bg-white/5 border border-white/10 text-gray-600' 
-                                                : 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-lg shadow-purple-500/20 hover:scale-110'
-                                            }`}
-                                          >
-                                            <Gift size={20} />
-                                            {!isOpened && (
-                                              <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
-                                              </span>
-                                            )}
-                                          </button>
-                                        );
+                                      {Array.from({ length: getEarnedBoxesCount(ticket.numbers.length) }).map((_, bIdx) => {
+                                        const openedBox = ticket.openedBoxes?.find((b: any) => b.index === bIdx);
+                                        const isOpened = !!openedBox;
+                                        const allPrizesWon = raffle.mysteryBox.prizes.every(p => p.winnerOrderNumber !== null);
+                                        
+                                          return (
+                                            <div key={bIdx} className="space-y-2 text-center">
+                                              <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Caixa #{bIdx + 1}</p>
+                                              <button
+                                                disabled={isOpened || allPrizesWon}
+                                                onClick={() => handleOpenBox(ticket)}
+                                                className={`relative w-12 h-12 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
+                                                  isOpened 
+                                                    ? openedBox.prize 
+                                                      ? 'bg-yellow-500/20 border border-yellow-500/40 text-yellow-400'
+                                                      : 'bg-white/5 border border-white/10 text-gray-600' 
+                                                    : allPrizesWon
+                                                      ? 'bg-white/5 border border-white/10 text-gray-600 cursor-not-allowed'
+                                                      : 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-lg shadow-purple-500/20 hover:scale-110'
+                                                }`}
+                                              >
+                                                {isOpened ? openedBox.prize ? <Trophy size={20} /> : <X size={20} /> : <Gift size={20} />}
+                                                {!isOpened && !allPrizesWon && (
+                                                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+                                                  </span>
+                                                )}
+                                              </button>
+                                              {isOpened ? (
+                                                <p className={`text-[8px] font-black uppercase tracking-tighter ${openedBox.prize ? 'text-yellow-400' : 'text-gray-600'}`}>
+                                                  {openedBox.prize ? 'Ganhou!' : 'Nada'}
+                                                </p>
+                                              ) : allPrizesWon ? (
+                                                <p className="text-[8px] font-black text-red-400 uppercase tracking-tighter">Esgotado</p>
+                                              ) : null}
+                                            </div>
+                                          );
                                       })}
                                     </div>
+                                    {ticket.openedBoxes?.some((b: any) => b.prize) && (
+                                      <div className="pt-3 border-t border-purple-500/10">
+                                        <p className="text-[10px] font-black text-yellow-400 uppercase tracking-widest flex items-center gap-2">
+                                          <Sparkles size={12} /> Prêmios ganhos:
+                                        </p>
+                                        <div className="mt-2 space-y-1">
+                                          {ticket.openedBoxes.filter((b: any) => b.prize).map((b: any, idx: number) => (
+                                            <p key={idx} className="text-[10px] text-white font-bold">{b.prize}</p>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
 
@@ -933,6 +1084,16 @@ export default function App() {
               </div>
             </main>
           </motion.div>
+        )}
+
+        {isAdmin && (
+          <AdminPanel 
+            setIsAdmin={setIsAdmin}
+            raffle={raffle}
+            setRaffle={setRaffle}
+            tickets={MOCK_TICKETS}
+            contributors={MOCK_CONTRIBUTORS}
+          />
         )}
       </AnimatePresence>
 
@@ -1012,6 +1173,19 @@ export default function App() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">E-mail</label>
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                        <input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="seu@email.com"
+                          className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">Data de Nascimento</label>
                       <div className="relative">
                         <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
@@ -1039,13 +1213,16 @@ export default function App() {
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-2">Confirmar Telefone</label>
-                        <input
-                          type="tel"
-                          value={formData.confirmPhone}
-                          onChange={(e) => handlePhoneChange(e, 'confirmPhone')}
-                          placeholder="(00) 00000-0000"
-                          className={`w-full bg-white/5 border ${phoneError ? 'border-red-500' : 'border-white/10'} rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 transition-all`}
-                        />
+                        <div className="relative">
+                          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                          <input
+                            type="tel"
+                            value={formData.confirmPhone}
+                            onChange={(e) => handlePhoneChange(e, 'confirmPhone')}
+                            placeholder="(00) 00000-0000"
+                            className={`w-full bg-white/5 border ${phoneError ? 'border-red-500' : 'border-white/10'} rounded-2xl pl-12 pr-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 transition-all`}
+                          />
+                        </div>
                       </div>
                       {phoneError && (
                         <p className="text-red-500 text-[10px] font-bold text-center uppercase tracking-wider">{phoneError}</p>
@@ -1197,6 +1374,108 @@ export default function App() {
                   </div>
                 )}
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Mystery Box Modal */}
+      <AnimatePresence>
+        {isMysteryBoxModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-md bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-purple-500/30 rounded-[40px] shadow-2xl overflow-hidden p-8 text-center space-y-8"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-500" />
+              
+              {boxOpeningStatus === 'opening' ? (
+                <div className="py-12 space-y-8">
+                  <motion.div
+                    animate={{ 
+                      rotate: [0, -10, 10, -10, 10, 0],
+                      scale: [1, 1.1, 1, 1.1, 1]
+                    }}
+                    transition={{ duration: 0.5, repeat: Infinity }}
+                    className="flex justify-center"
+                  >
+                    <div className="w-32 h-32 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-[40px] flex items-center justify-center shadow-2xl shadow-purple-500/40">
+                      <Gift size={64} className="text-white" />
+                    </div>
+                  </motion.div>
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-black font-display tracking-tight animate-pulse">ABRINDO CAIXA...</h3>
+                    <p className="text-purple-300 text-xs font-bold uppercase tracking-widest">Sorteando seu prêmio</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-8 space-y-8">
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    className="flex justify-center"
+                  >
+                    {boxPrize ? (
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-yellow-400/20 blur-3xl animate-pulse" />
+                        <div className="w-32 h-32 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-[40px] flex items-center justify-center shadow-2xl shadow-yellow-500/40 relative z-10">
+                          <Trophy size={64} className="text-white" />
+                        </div>
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.5 }}
+                          className="absolute -top-4 -right-4"
+                        >
+                          <Sparkles className="text-yellow-400" size={32} />
+                        </motion.div>
+                      </div>
+                    ) : (
+                      <div className="w-32 h-32 bg-white/5 border border-white/10 rounded-[40px] flex items-center justify-center">
+                        <X size={64} className="text-gray-600" />
+                      </div>
+                    )}
+                  </motion.div>
+
+                  <div className="space-y-4">
+                    {boxPrize ? (
+                      <>
+                        <div className="space-y-1">
+                          <h3 className="text-3xl font-black font-display tracking-tight text-white">PARABÉNS!</h3>
+                          <p className="text-yellow-400 text-xs font-bold uppercase tracking-widest">Você ganhou um prêmio instantâneo</p>
+                        </div>
+                        <div className="bg-white/5 border border-yellow-500/30 rounded-2xl p-6">
+                          <p className="text-2xl font-black text-white font-display">{boxPrize}</p>
+                        </div>
+                        <p className="text-gray-400 text-[10px] uppercase tracking-widest">O prêmio será creditado em sua conta em breve</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="space-y-1">
+                          <h3 className="text-3xl font-black font-display tracking-tight text-white">NÃO FOI DESSA VEZ</h3>
+                          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Tente na próxima</p>
+                        </div>
+                        <p className="text-gray-400 text-sm">Continue participando para ter mais chances de ganhar!</p>
+                      </>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => setIsMysteryBoxModalOpen(false)}
+                    className="w-full bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-2xl transition-all uppercase tracking-widest text-xs"
+                  >
+                    FECHAR
+                  </button>
+                </div>
+              )}
             </motion.div>
           </div>
         )}
